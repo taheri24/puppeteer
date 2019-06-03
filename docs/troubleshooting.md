@@ -112,6 +112,12 @@ xorg-x11-fonts-cyrillic
 xorg-x11-fonts-Type1
 xorg-x11-fonts-misc
 ```
+
+After installing dependencies you need to update nss library using this command
+
+```
+yum update nss -y
+```
 </details>
 
 <details>
@@ -231,8 +237,7 @@ RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key
     && apt-get update \
     && apt-get install -y google-chrome-unstable fonts-ipafont-gothic fonts-wqy-zenhei fonts-thai-tlwg fonts-kacst ttf-freefont \
       --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/* \
-    && rm -rf /src/*.deb
+    && rm -rf /var/lib/apt/lists/*
 
 # If running Docker >= 1.13.0 use docker run's --init arg to reap zombie processes, otherwise
 # uncomment the following lines to have `dumb-init` as PID 1
@@ -279,19 +284,19 @@ how to run this Dockerfile from a webserver running on App Engine Flex (Node).
 
 ### Running on Alpine
 
-The [newest Chromium package](https://pkgs.alpinelinux.org/package/edge/community/x86_64/chromium) supported on Alpine is 72, which was corresponding to [Puppeteer v1.11.0](https://github.com/GoogleChrome/puppeteer/releases/tag/v1.11.0).
+The [newest Chromium package](https://pkgs.alpinelinux.org/package/edge/community/x86_64/chromium) supported on Alpine is 73, which was corresponding to [Puppeteer v1.12.2](https://github.com/GoogleChrome/puppeteer/releases/tag/v1.12.2).
 
 Example Dockerfile:
 
 ```Dockerfile
 FROM node:10-alpine
 
-# Installs latest Chromium (72) package.
+# Installs latest Chromium (73) package.
 RUN apk update && apk upgrade && \
     echo @edge http://nl.alpinelinux.org/alpine/edge/community >> /etc/apk/repositories && \
     echo @edge http://nl.alpinelinux.org/alpine/edge/main >> /etc/apk/repositories && \
     apk add --no-cache \
-      chromium@edge \
+      chromium@edge=~73.0.3683.103 \
       nss@edge \
       freetype@edge \
       harfbuzz@edge \
@@ -302,12 +307,12 @@ RUN apk update && apk upgrade && \
 # Tell Puppeteer to skip installing Chrome. We'll be using the installed package.
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD true
 
-# Puppeteer v1.11.0 works with Chromium 72.
-RUN yarn add puppeteer@1.11.0
+# Puppeteer v1.12.2 works with Chromium 73.
+RUN yarn add puppeteer@1.12.2
 
 # Add user so we don't need --no-sandbox.
 RUN addgroup -S pptruser && adduser -S -g pptruser pptruser \
-    && mkdir -p /home/pptruser/Downloads \
+    && mkdir -p /home/pptruser/Downloads /app \
     && chown -R pptruser:pptruser /home/pptruser \
     && chown -R pptruser:pptruser /app
 

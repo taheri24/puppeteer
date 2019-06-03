@@ -57,7 +57,17 @@ module.exports.addTests = function({testRunner, expect, headless, puppeteer, CHR
       const browserWSEndpoint = browser.wsEndpoint();
       const remoteBrowser = await puppeteer.connect({browserWSEndpoint});
       expect(remoteBrowser.process()).toBe(null);
-      await remoteBrowser.disconnect();
+      remoteBrowser.disconnect();
+    });
+  });
+
+  describe('Browser.isConnected', () => {
+    it('should set the browser connected state', async({browser}) => {
+      const browserWSEndpoint = browser.wsEndpoint();
+      const newBrowser = await puppeteer.connect({browserWSEndpoint});
+      expect(newBrowser.isConnected()).toBe(true);
+      newBrowser.disconnect();
+      expect(newBrowser.isConnected()).toBe(false);
     });
   });
 };

@@ -31,8 +31,6 @@ module.exports.addTests = ({testRunner, product, puppeteerPath}) => {
   const FFOX = product === 'Firefox';
 
   const puppeteer = require(puppeteerPath);
-  const Errors = require(path.join(puppeteerPath, 'Errors'));
-  const DeviceDescriptors = require(path.join(puppeteerPath, 'DeviceDescriptors'));
 
   const headless = (process.env.HEADLESS || 'true').trim().toLowerCase() === 'true';
   const slowMo = parseInt((process.env.SLOW_MO || '0').trim(), 10);
@@ -67,8 +65,6 @@ module.exports.addTests = ({testRunner, product, puppeteerPath}) => {
     FFOX,
     CHROME,
     puppeteer,
-    Errors,
-    DeviceDescriptors,
     expect,
     defaultBrowserOptions,
     puppeteerPath,
@@ -137,6 +133,7 @@ module.exports.addTests = ({testRunner, product, puppeteerPath}) => {
       require('./mouse.spec.js').addTests(testOptions);
       require('./navigation.spec.js').addTests(testOptions);
       require('./network.spec.js').addTests(testOptions);
+      require('./requestinterception.spec.js').addTests(testOptions);
       require('./page.spec.js').addTests(testOptions);
       require('./screenshot.spec.js').addTests(testOptions);
       require('./queryselector.spec.js').addTests(testOptions);
@@ -161,6 +158,7 @@ module.exports.addTests = ({testRunner, product, puppeteerPath}) => {
   require('./launcher.spec.js').addTests(testOptions);
   require('./fixtures.spec.js').addTests(testOptions);
   if (CHROME) {
+    require('./oopif.spec.js').addTests(testOptions);
     require('./headful.spec.js').addTests(testOptions);
     require('./tracing.spec.js').addTests(testOptions);
     // Add top-level Chromium-specific tests.

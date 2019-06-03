@@ -15,24 +15,45 @@
  */
 
 const utils = require('./utils');
-const DeviceDescriptors = utils.requireRoot('DeviceDescriptors');
-const iPhone = DeviceDescriptors['iPhone 6'];
 
-module.exports.addTests = function({testRunner, expect}) {
+module.exports.addTests = function({testRunner, expect, puppeteer}) {
   const {describe, xdescribe, fdescribe} = testRunner;
   const {it, fit, xit, it_fails_ffox} = testRunner;
   const {beforeAll, beforeEach, afterAll, afterEach} = testRunner;
+
   describe('Page.click', function() {
     it('should click the button', async({page, server}) => {
       await page.goto(server.PREFIX + '/input/button.html');
       await page.click('button');
       expect(await page.evaluate(() => result)).toBe('Clicked');
     });
+    it('should click svg', async({page, server}) => {
+      await page.setContent(`
+        <svg height="100" width="100">
+          <circle onclick="javascript:window.__CLICKED=42" cx="50" cy="50" r="40" stroke="black" stroke-width="3" fill="red" />
+        </svg>
+      `);
+      await page.click('circle');
+      expect(await page.evaluate(() => window.__CLICKED)).toBe(42);
+    });
     it_fails_ffox('should click the button if window.Node is removed', async({page, server}) => {
       await page.goto(server.PREFIX + '/input/button.html');
       await page.evaluate(() => delete window.Node);
       await page.click('button');
       expect(await page.evaluate(() => result)).toBe('Clicked');
+    });
+    // @see https://github.com/GoogleChrome/puppeteer/issues/4281
+    it('should click on a span with an inline element inside', async({page, server}) => {
+      await page.setContent(`
+        <style>
+        span::before {
+          content: 'q';
+        }
+        </style>
+        <span onclick='javascript:window.CLICKED=42'></span>
+      `);
+      await page.click('span');
+      expect(await page.evaluate(() => window.CLICKED)).toBe(42);
     });
     it('should click the button after navigation ', async({page, server}) => {
       await page.goto(server.PREFIX + '/input/button.html');
@@ -49,6 +70,19 @@ module.exports.addTests = function({testRunner, expect}) {
         page.waitForNavigation()
       ]);
       expect(page.url()).toBe(server.PREFIX + '/wrappedlink.html#clicked');
+    });
+    it_fails_ffox('should click when one of inline box children is outside of viewport', async({page, server}) => {
+      await page.setContent(`
+        <style>
+        i {
+          position: absolute;
+          top: -1000px;
+        }
+        </style>
+        <span onclick='javascript:window.CLICKED = 42;'><i>woof</i><b>doggo</b></span>
+      `);
+      await page.click('span');
+      expect(await page.evaluate(() => window.CLICKED)).toBe(42);
     });
     it('should select the text by triple clicking', async({page, server}) => {
       await page.goto(server.PREFIX + '/input/textarea.html');
@@ -134,7 +168,7 @@ module.exports.addTests = function({testRunner, expect}) {
     });
     // @see https://github.com/GoogleChrome/puppeteer/issues/161
     it('should not hang with touch-enabled viewports', async({page, server}) => {
-      await page.setViewport(iPhone.viewport);
+      await page.setViewport(puppeteer.devices['iPhone 6'].viewport);
       await page.mouse.down();
       await page.mouse.move(100, 10);
       await page.mouse.up();

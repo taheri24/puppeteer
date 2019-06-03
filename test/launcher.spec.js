@@ -24,7 +24,7 @@ const statAsync = helper.promisify(fs.stat);
 const TMP_FOLDER = path.join(os.tmpdir(), 'pptr_tmp_folder-');
 const utils = require('./utils');
 
-module.exports.addTests = function({testRunner, expect, defaultBrowserOptions, puppeteer, CHROME}) {
+module.exports.addTests = function({testRunner, expect, defaultBrowserOptions, puppeteer, CHROME, puppeteerPath}) {
   const {describe, xdescribe, fdescribe, describe_fails_ffox} = testRunner;
   const {it, fit, xit, it_fails_ffox} = testRunner;
   const {beforeAll, beforeEach, afterAll, afterEach} = testRunner;
@@ -67,7 +67,7 @@ module.exports.addTests = function({testRunner, expect, defaultBrowserOptions, p
         const page = await remote.newPage();
         const navigationPromise = page.goto(server.PREFIX + '/one-style.html', {timeout: 60000}).catch(e => e);
         await server.waitForRequest('/one-style.css');
-        await remote.disconnect();
+        remote.disconnect();
         const error = await navigationPromise;
         expect(error.message).toBe('Navigation failed because browser has disconnected!');
         await browser.close();
@@ -78,7 +78,7 @@ module.exports.addTests = function({testRunner, expect, defaultBrowserOptions, p
         const remote = await puppeteer.connect({browserWSEndpoint: browser.wsEndpoint()});
         const page = await remote.newPage();
         const watchdog = page.waitForSelector('div', {timeout: 60000}).catch(e => e);
-        await remote.disconnect();
+        remote.disconnect();
         const error = await watchdog;
         expect(error.message).toContain('Protocol error');
         await browser.close();
@@ -316,6 +316,19 @@ module.exports.addTests = function({testRunner, expect, defaultBrowserOptions, p
         expect(await restoredPage.evaluate(() => 7 * 8)).toBe(56);
         await browser.close();
       });
+      // @see https://github.com/GoogleChrome/puppeteer/issues/4197#issuecomment-481793410
+      it('should be able to connect to the same page simultaneously', async({server}) => {
+        const browserOne = await puppeteer.launch();
+        const browserTwo = await puppeteer.connect({ browserWSEndpoint: browserOne.wsEndpoint() });
+        const [page1, page2] = await Promise.all([
+          new Promise(x => browserOne.once('targetcreated', target => x(target.page()))),
+          browserTwo.newPage(),
+        ]);
+        expect(await page1.evaluate(() => 7 * 8)).toBe(56);
+        expect(await page2.evaluate(() => 7 * 6)).toBe(42);
+        await browserOne.close();
+      });
+
     });
     describe('Puppeteer.executablePath', function() {
       it('should work', async({server}) => {
@@ -323,6 +336,17 @@ module.exports.addTests = function({testRunner, expect, defaultBrowserOptions, p
         expect(fs.existsSync(executablePath)).toBe(true);
         expect(fs.realpathSync(executablePath)).toBe(executablePath);
       });
+    });
+  });
+
+  describe('Top-level requires', function() {
+    it('should require top-level Errors', async() => {
+      const Errors = require(path.join(puppeteerPath, '/Errors'));
+      expect(Errors.TimeoutError).toBe(puppeteer.errors.TimeoutError);
+    });
+    it('should require top-level DeviceDescriptors', async() => {
+      const Devices = require(path.join(puppeteerPath, '/DeviceDescriptors'));
+      expect(Devices['iPhone 6']).toBe(puppeteer.devices['iPhone 6']);
     });
   });
 

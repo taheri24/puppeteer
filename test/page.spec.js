@@ -25,13 +25,10 @@ try {
   asyncawait = false;
 }
 
-module.exports.addTests = function({testRunner, expect, headless, Errors, DeviceDescriptors, CHROME}) {
+module.exports.addTests = function({testRunner, expect, headless, puppeteer, CHROME}) {
   const {describe, xdescribe, fdescribe, describe_fails_ffox} = testRunner;
   const {it, fit, xit, it_fails_ffox} = testRunner;
   const {beforeAll, beforeEach, afterAll, afterEach} = testRunner;
-
-  const {TimeoutError} = Errors;
-  const iPhone = DeviceDescriptors['iPhone 6'];
 
   describe('Page.close', function() {
     it('should reject all promises when page is closed', async({context}) => {
@@ -289,6 +286,15 @@ module.exports.addTests = function({testRunner, expect, headless, Errors, Device
       const values = await page.evaluate(objects => Array.from(objects[0].values()), objectsHandle);
       expect(values).toEqual(['hello', 'world']);
     });
+    it('should work for non-blank page', async({page, server}) => {
+      // Instantiate an object
+      await page.goto(server.EMPTY_PAGE);
+      await page.evaluate(() => window.set = new Set(['hello', 'world']));
+      const prototypeHandle = await page.evaluateHandle(() => Set.prototype);
+      const objectsHandle = await page.queryObjects(prototypeHandle);
+      const count = await page.evaluate(objects => objects.length, objectsHandle);
+      expect(count).toBe(1);
+    });
     it('should fail for disposed handles', async({page, server}) => {
       const prototypeHandle = await page.evaluateHandle(() => HTMLBodyElement.prototype);
       await prototypeHandle.dispose();
@@ -487,13 +493,13 @@ module.exports.addTests = function({testRunner, expect, headless, Errors, Device
     it('should respect timeout', async({page, server}) => {
       let error = null;
       await page.waitForRequest(() => false, {timeout: 1}).catch(e => error = e);
-      expect(error).toBeInstanceOf(TimeoutError);
+      expect(error).toBeInstanceOf(puppeteer.errors.TimeoutError);
     });
     it('should respect default timeout', async({page, server}) => {
       let error = null;
       page.setDefaultTimeout(1);
       await page.waitForRequest(() => false).catch(e => error = e);
-      expect(error).toBeInstanceOf(TimeoutError);
+      expect(error).toBeInstanceOf(puppeteer.errors.TimeoutError);
     });
     it('should work with no timeout', async({page, server}) => {
       await page.goto(server.EMPTY_PAGE);
@@ -525,13 +531,13 @@ module.exports.addTests = function({testRunner, expect, headless, Errors, Device
     it('should respect timeout', async({page, server}) => {
       let error = null;
       await page.waitForResponse(() => false, {timeout: 1}).catch(e => error = e);
-      expect(error).toBeInstanceOf(TimeoutError);
+      expect(error).toBeInstanceOf(puppeteer.errors.TimeoutError);
     });
     it('should respect default timeout', async({page, server}) => {
       let error = null;
       page.setDefaultTimeout(1);
       await page.waitForResponse(() => false).catch(e => error = e);
-      expect(error).toBeInstanceOf(TimeoutError);
+      expect(error).toBeInstanceOf(puppeteer.errors.TimeoutError);
     });
     it('should work with predicate', async({page, server}) => {
       await page.goto(server.EMPTY_PAGE);
@@ -650,6 +656,13 @@ module.exports.addTests = function({testRunner, expect, headless, Errors, Device
       });
       expect(result).toBe(15);
     });
+    it('should work with complex objects', async({page, server}) => {
+      await page.exposeFunction('complexObject', function(a, b) {
+        return {x: a.x + b.x};
+      });
+      const result = await page.evaluate(async() => complexObject({x: 5}, {x: 2}));
+      expect(result.x).toBe(7);
+    });
   });
 
   describe('Page.Events.PageError', function() {
@@ -686,7 +699,7 @@ module.exports.addTests = function({testRunner, expect, headless, Errors, Device
     it('should emulate device user-agent', async({page, server}) => {
       await page.goto(server.PREFIX + '/mobile.html');
       expect(await page.evaluate(() => navigator.userAgent)).not.toContain('iPhone');
-      await page.setUserAgent(iPhone.userAgent);
+      await page.setUserAgent(puppeteer.devices['iPhone 6'].userAgent);
       expect(await page.evaluate(() => navigator.userAgent)).toContain('iPhone');
     });
   });
@@ -717,7 +730,7 @@ module.exports.addTests = function({testRunner, expect, headless, Errors, Device
       server.setRoute(imgPath, (req, res) => {});
       let error = null;
       await page.setContent(`<img src="${server.PREFIX + imgPath}"></img>`, {timeout: 1}).catch(e => error = e);
-      expect(error).toBeInstanceOf(TimeoutError);
+      expect(error).toBeInstanceOf(puppeteer.errors.TimeoutError);
     });
     it_fails_ffox('should respect default navigation timeout', async({page, server}) => {
       page.setDefaultNavigationTimeout(1);
@@ -726,7 +739,7 @@ module.exports.addTests = function({testRunner, expect, headless, Errors, Device
       server.setRoute(imgPath, (req, res) => {});
       let error = null;
       await page.setContent(`<img src="${server.PREFIX + imgPath}"></img>`).catch(e => error = e);
-      expect(error).toBeInstanceOf(TimeoutError);
+      expect(error).toBeInstanceOf(puppeteer.errors.TimeoutError);
     });
     it_fails_ffox('should await resources to load', async({page, server}) => {
       const imgPath = '/img.png';
@@ -742,6 +755,22 @@ module.exports.addTests = function({testRunner, expect, headless, Errors, Device
     it('should work fast enough', async({page, server}) => {
       for (let i = 0; i < 20; ++i)
         await page.setContent('<div>yo</div>');
+    });
+    it('should work with tricky content', async({page, server}) => {
+      await page.setContent('<div>hello world</div>' + '\x7F');
+      expect(await page.$eval('div', div => div.textContent)).toBe('hello world');
+    });
+    it('should work with accents', async({page, server}) => {
+      await page.setContent('<div>aberración</div>');
+      expect(await page.$eval('div', div => div.textContent)).toBe('aberración');
+    });
+    it('should work with emojis', async({page, server}) => {
+      await page.setContent('<div>🐥</div>');
+      expect(await page.$eval('div', div => div.textContent)).toBe('🐥');
+    });
+    it('should work with newline', async({page, server}) => {
+      await page.setContent('<div>\n</div>');
+      expect(await page.$eval('div', div => div.textContent)).toBe('\n');
     });
   });
 
